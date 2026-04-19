@@ -26,11 +26,11 @@ enum class EEGXOreType : uint8
 	Lead,
 	Copper,
 	Tin,
-	Silver
+	Silver,
 	Uradium
 };
 
-EUNUM(BlueprintType)
+UENUM(BlueprintType)
 enum class EEGXEnergyType : uint8
 {
 	None,
