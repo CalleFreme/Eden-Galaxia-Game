@@ -1,0 +1,2 @@
+#include "GXELog.h"
+DEFINE_LOG_CATEGORY(LogGXE);
