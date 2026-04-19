@@ -1,2 +1,2 @@
 #include "Modules/ModuleManager.h"
-IMPLEMENT_MODULE(FDefaultModuleImpl, GXECore);
+IMPLEMENT_MODULE(FDefaultModuleImpl, EGXCore);

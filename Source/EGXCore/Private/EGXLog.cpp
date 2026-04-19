@@ -1,2 +1,2 @@
-#include "GXELog.h"
-DEFINE_LOG_CATEGORY(LogGXE);
+#include "EGXLog.h"
+DEFINE_LOG_CATEGORY(LogEGX);

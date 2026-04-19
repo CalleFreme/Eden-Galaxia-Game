@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
-#include "GXETypes.generated.h"
+#include "EGXTypes.generated.h"
 
 UENUM(BlueprintType)
 enum class EEGXResourceType : uint8
