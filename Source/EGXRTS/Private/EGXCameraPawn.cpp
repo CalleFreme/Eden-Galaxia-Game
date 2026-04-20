@@ -5,6 +5,7 @@
 #include "EGXPlanetActor.h"
 #include "EGXPlanetTypes.h"
 #include "EnhancedInputComponent.h"
+#include "InputActionValue.h"
 
 class UInputAction;
 class UInputMappingContext;
@@ -20,36 +21,162 @@ AEGXCameraPawn::AEGXCameraPawn()
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArm"));
 	SpringArm->SetupAttachment(RootComponent);
 	SpringArm->bDoCollisionTest = false;
-	SpringArm->bInheritPitch = false;
-	SpringArm->bInheritYaw = false;
-	SpringArm->bInheritRoll = false;
+	
+	SpringArm->bInheritPitch = true;
+	SpringArm->bInheritYaw = true;
+	SpringArm->bInheritRoll = true;
+	
+	SpringArm->bUsePawnControlRotation = false;
+	SpringArm->SetUsingAbsoluteRotation(false);
+	SpringArm->SetAbsolute(false, false, false);
+	
 	SpringArm->TargetArmLength = 1800.f;
-
+	SpringArm->SetRelativeRotation(FRotator(-PitchDegrees, 0.f, 0.f));
+	
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	Camera->SetupAttachment(SpringArm, USpringArmComponent::SocketName);
-
+	Camera->bUsePawnControlRotation = false;
+	Camera->SetUsingAbsoluteRotation(false);
+	Camera->SetAbsolute(false, false, false);
+	
 	AutoPossessPlayer = EAutoReceiveInput::Disabled;
+	
+	FocusWorldLocation = FVector(0.f, 0.f, 1000.f);
+	FocusSurfaceNormal = FVector::UpVector;
+	ViewForwardTangent = FVector::ForwardVector;
+	ZoomDistance = 1800.f;
 }
 
 void AEGXCameraPawn::BeginPlay()
 {
 	Super::BeginPlay();
+	
+	UE_LOG(LogTemp, Warning,
+		TEXT("Camera flags - SpringArm AbsRot:%d UsePCR:%d Camera AbsRot:%d UsePCR:%d"),
+		SpringArm->IsUsingAbsoluteRotation(),
+		SpringArm->bUsePawnControlRotation,
+		Camera->IsUsingAbsoluteRotation(),
+		Camera->bUsePawnControlRotation);
 	ZoomDistance = SpringArm->TargetArmLength;
+
+	if (FocusWorldLocation.IsNearlyZero())
+	{
+		FocusWorldLocation = GetActorLocation();
+	}
+
+	if (FocusSurfaceNormal.IsNearlyZero())
+	{
+		FocusSurfaceNormal = FVector::UpVector;
+	}
+
+	RebuildViewForwardFromCurrentTransform();
+	UpdateViewTransform(0.f);
+}
+
+FVector AEGXCameraPawn::GetLocalUpVector() const
+{
+	return ActivePlanet ? FocusSurfaceNormal.GetSafeNormal() : FVector::UpVector;;
+}
+
+void AEGXCameraPawn::ConstrainViewForwardToSurface()
+{
+	const FVector Up = GetLocalUpVector();
+
+	ViewForwardTangent = FVector::VectorPlaneProject(ViewForwardTangent, Up).GetSafeNormal();
+
+	if (ViewForwardTangent.IsNearlyZero())
+	{
+		ViewForwardTangent = FVector::VectorPlaneProject(FVector::ForwardVector, Up).GetSafeNormal();
+
+		if (ViewForwardTangent.IsNearlyZero())
+		{
+			ViewForwardTangent = FVector::VectorPlaneProject(FVector::RightVector, Up).GetSafeNormal();
+		}
+	}
+}
+
+void AEGXCameraPawn::RebuildViewForwardFromCurrentTransform()
+{
+	const FVector Up = GetLocalUpVector();
+
+	// Use what the camera is actually looking along, projected onto the current tangent plane.
+	if (Camera)
+	{
+		ViewForwardTangent = FVector::VectorPlaneProject(Camera->GetForwardVector(), Up).GetSafeNormal();
+	}
+
+	if (ViewForwardTangent.IsNearlyZero())
+	{
+		ViewForwardTangent = FVector::VectorPlaneProject(GetActorForwardVector(), Up).GetSafeNormal();
+	}
+
+	ConstrainViewForwardToSurface();
+}
+
+static FVector MakeInitialSurfaceForward(const FVector& Up)
+{
+	FVector Forward = FVector::VectorPlaneProject(FVector::ForwardVector, Up).GetSafeNormal();
+	if (Forward.IsNearlyZero())
+	{
+		Forward = FVector::VectorPlaneProject(FVector::RightVector, Up).GetSafeNormal();
+	}
+	return Forward;
 }
 
 void AEGXCameraPawn::InitializeForPlanet(AEGXPlanetActor* InPlanet, const FVector& SurfacePoint)
 {
 	ActivePlanet = InPlanet;
-	FocusWorldLocation = SurfacePoint;
+	//FocusWorldLocation = SurfacePoint;
 
 	if (ActivePlanet)
 	{
-		FocusSurfaceNormal = ActivePlanet->GetSurfaceNormalAt(SurfacePoint);
 		FocusWorldLocation = ActivePlanet->ProjectPointToSurface(SurfacePoint, 0.f);
+		FocusSurfaceNormal = ActivePlanet->GetSurfaceNormalAt(FocusWorldLocation);
+		ViewForwardTangent = MakeInitialSurfaceForward(FocusSurfaceNormal);
+	}
+	else
+	{
+		FocusWorldLocation = SurfacePoint;
+		FocusSurfaceNormal = FVector::UpVector;
+		ViewForwardTangent = FVector::ForwardVector;
 	}
 
-	SetActorLocation(FocusWorldLocation);
+	ConstrainViewForwardToSurface();
 	UpdateViewTransform(0.f);
+}
+
+void AEGXCameraPawn::InitializeForFlat(const FVector& WorldFocus)
+{
+	ActivePlanet = nullptr;
+	FocusWorldLocation = WorldFocus;
+	FocusSurfaceNormal = FVector::UpVector;
+	ViewForwardTangent = FVector::ForwardVector;
+	ConstrainViewForwardToSurface();
+	UpdateViewTransform(0.f);
+}
+
+void AEGXCameraPawn::SetFocusWorldLocation(const FVector& InFocusWorldLocation)
+{
+	FocusWorldLocation = InFocusWorldLocation;
+
+	if (ActivePlanet)
+	{
+		FocusWorldLocation = ActivePlanet->ProjectPointToSurface(FocusWorldLocation, 0.f);
+		FocusSurfaceNormal = ActivePlanet->GetSurfaceNormalAt(FocusWorldLocation);
+	}
+	else
+	{
+		FocusSurfaceNormal = FVector::UpVector;
+	}
+
+	ConstrainViewForwardToSurface();
+}
+
+void AEGXCameraPawn::ClearPlanetMode()
+{
+	ActivePlanet = nullptr;
+	FocusSurfaceNormal = FVector::UpVector;
+	ConstrainViewForwardToSurface();
 }
 
 void AEGXCameraPawn::SetFocusFromSurfaceHit(const FEGXSurfaceHit& SurfaceHit)
@@ -61,13 +188,21 @@ void AEGXCameraPawn::SetFocusFromSurfaceHit(const FEGXSurfaceHit& SurfaceHit)
 
 	ActivePlanet = SurfaceHit.Planet;
 	FocusWorldLocation = SurfaceHit.WorldLocation;
-	FocusSurfaceNormal = SurfaceHit.SurfaceNormal;
+	FocusSurfaceNormal = SurfaceHit.SurfaceNormal.GetSafeNormal();
+
+	if (!ActivePlanet)
+	{
+		FocusSurfaceNormal = FVector::UpVector;
+	}
+
+	ConstrainViewForwardToSurface();
 }
 
 void AEGXCameraPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	ApplyRotate(DeltaTime);
 	ApplyPan(DeltaTime);
 
 	if (!FMath::IsNearlyZero(PendingZoomInput))
@@ -76,11 +211,6 @@ void AEGXCameraPawn::Tick(float DeltaTime)
 			ZoomDistance - PendingZoomInput * ZoomSpeed,
 			MinZoom,
 			MaxZoom);
-	}
-
-	if (!FMath::IsNearlyZero(PendingRotateInput))
-	{
-		YawDegrees += PendingRotateInput * RotationSpeedDegrees * DeltaTime;
 	}
 
 	UpdateViewTransform(DeltaTime);
@@ -126,37 +256,50 @@ void AEGXCameraPawn::Input_CameraZoom(const FInputActionValue& Value)
 void AEGXCameraPawn::Input_CameraRotate(const FInputActionValue& Value)
 {
 	PendingRotateInput = Value.Get<float>();
+
+	UE_LOG(LogTemp, Verbose, TEXT("CameraPawn Rotate Input=%f"), PendingRotateInput);
 }
 
-FVector AEGXCameraPawn::GetCameraForwardOnTangentPlane() const
+FVector AEGXCameraPawn::GetStablePlanetReferenceForward(const FVector& Up) const
 {
-	const FVector Up = FocusSurfaceNormal.GetSafeNormal();
-
-	const FQuat YawQuat(Up, FMath::DegreesToRadians(YawDegrees));
-
-	// Pick an arbitrary tangent reference that is stable enough.
 	FVector ReferenceForward = FVector::CrossProduct(FVector::UpVector, Up);
 	if (ReferenceForward.IsNearlyZero())
 	{
 		ReferenceForward = FVector::CrossProduct(FVector::ForwardVector, Up);
 	}
-	ReferenceForward.Normalize();
 
-	FVector Forward = YawQuat.RotateVector(ReferenceForward);
-	Forward = FVector::VectorPlaneProject(Forward, Up).GetSafeNormal();
-	return Forward;
+	return ReferenceForward.GetSafeNormal();
+}
+
+FVector AEGXCameraPawn::GetCameraForwardOnTangentPlane() const
+{
+	return ViewForwardTangent.GetSafeNormal();
 }
 
 FVector AEGXCameraPawn::GetCameraRightOnTangentPlane() const
 {
-	const FVector Up = FocusSurfaceNormal.GetSafeNormal();
-	const FVector Forward = GetCameraForwardOnTangentPlane();
-	return FVector::CrossProduct(Up, Forward).GetSafeNormal();
+	const FVector Up = GetLocalUpVector();
+	return FVector::CrossProduct(Up, GetCameraForwardOnTangentPlane()).GetSafeNormal();
+}
+
+void AEGXCameraPawn::ApplyRotate(float DeltaTime)
+{
+	if (FMath::IsNearlyZero(PendingRotateInput))
+	{
+		return;
+	}
+
+	const FVector Up = GetLocalUpVector();
+	const float AngleDegrees = PendingRotateInput * RotationSpeedDegrees * DeltaTime;
+	const FQuat Rot(Up, FMath::DegreesToRadians(AngleDegrees));
+
+	ViewForwardTangent = Rot.RotateVector(ViewForwardTangent).GetSafeNormal();
+	ConstrainViewForwardToSurface();
 }
 
 void AEGXCameraPawn::ApplyPan(float DeltaTime)
 {
-	if (!ActivePlanet || PendingPanInput.IsNearlyZero())
+	if (PendingPanInput.IsNearlyZero())
 	{
 		return;
 	}
@@ -164,50 +307,73 @@ void AEGXCameraPawn::ApplyPan(float DeltaTime)
 	const FVector Forward = GetCameraForwardOnTangentPlane();
 	const FVector Right = GetCameraRightOnTangentPlane();
 
-	const FVector DesiredMove =
-		(Forward * PendingPanInput.Y) +
-		(Right * PendingPanInput.X);
+	if (!ActivePlanet)
+	{
+		const FVector DesiredMove =
+			(Forward * PendingPanInput.Y) +
+			(Right * PendingPanInput.X);
 
-	const FVector Delta = DesiredMove.GetClampedToMaxSize(1.f) * PanSpeed * DeltaTime;
-	const FVector NewFocus = FocusWorldLocation + Delta;
+		FocusWorldLocation += DesiredMove.GetClampedToMaxSize(1.f) * PanSpeed * DeltaTime;
+		FocusSurfaceNormal = FVector::UpVector;
+		return;
+	}
 
-	FocusWorldLocation = ActivePlanet->ProjectPointToSurface(NewFocus, 0.f);
-	FocusSurfaceNormal = ActivePlanet->GetSurfaceNormalAt(FocusWorldLocation);
+	const FVector PlanetCenter = ActivePlanet->GetActorLocation();
+	const float Radius = FVector::Distance(FocusWorldLocation, PlanetCenter);
+	if (Radius <= KINDA_SMALL_NUMBER)
+	{
+		return;
+	}
+
+	FVector RadiusDir = (FocusWorldLocation - PlanetCenter).GetSafeNormal();
+
+	const float ForwardDistance = PendingPanInput.Y * PanSpeed * DeltaTime;
+	const float RightDistance = PendingPanInput.X * PanSpeed * DeltaTime;
+
+	const float ForwardAngleRad = ForwardDistance / Radius;
+	const float RightAngleRad = RightDistance / Radius;
+
+	// W/S = along current screen forward/back
+	const FQuat ForwardMoveRot(Right, ForwardAngleRad);
+
+	// A/D = along current screen left/right
+	const FQuat SideMoveRot(-Forward, RightAngleRad);
+
+	const FQuat CombinedRot = SideMoveRot * ForwardMoveRot;
+	RadiusDir = CombinedRot.RotateVector(RadiusDir).GetSafeNormal();
+
+	FocusSurfaceNormal = RadiusDir;
+	FocusWorldLocation = PlanetCenter + RadiusDir * Radius;
+
+	ConstrainViewForwardToSurface();
 }
 
 void AEGXCameraPawn::UpdateViewTransform(float DeltaTime)
 {
-	if (!ActivePlanet)
-	{
-		// Fallback if no planet yet.
-		SpringArm->TargetArmLength = ZoomDistance;
-		SetActorLocation(FocusWorldLocation);
-		SetActorRotation(FRotator(-PitchDegrees, YawDegrees, 0.f));
-		return;
-	}
+	SpringArm->TargetArmLength = ZoomDistance;
+	SpringArm->SetRelativeRotation(FRotator(-PitchDegrees, 0.f, 0.f));
 
-	//const FVector Up = FocusSurfaceNormal.GetSafeNormal();
+	const FVector Up = GetLocalUpVector();
+	const FVector DesiredFocusAnchor = ActivePlanet
+	? FocusWorldLocation + Up * 50.f
+	: FocusWorldLocation;
 	const FVector Forward = GetCameraForwardOnTangentPlane();
-	const FVector Right = GetCameraRightOnTangentPlane();
-
-	//const FRotationMatrix BasisRot = FRotationMatrix::MakeFromXZ(Forward, Right).Rotator();
-	const FQuat PitchQuat(Right, FMath::DegreesToRadians(-PitchDegrees));
-
-	const FVector BackDirection = PitchQuat.RotateVector(-Forward).GetSafeNormal();
-	const FVector DesiredCameraLocation = FocusWorldLocation - BackDirection * ZoomDistance;
+	const FRotator DesiredRotation = FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
 
 	const FVector SmoothedLocation = FMath::VInterpTo(
 		GetActorLocation(),
-		DesiredCameraLocation,
+		DesiredFocusAnchor,
+		DeltaTime,
+		ViewSmoothingSpeed);
+
+	const FRotator SmoothedRotation = FMath::RInterpTo(
+		GetActorRotation(),
+		DesiredRotation,
 		DeltaTime,
 		ViewSmoothingSpeed);
 
 	SetActorLocation(SmoothedLocation);
-
-	const FRotator DesiredRotation = (FocusWorldLocation - SmoothedLocation).Rotation();
-	SetActorRotation(FMath::RInterpTo(GetActorRotation(), DesiredRotation, DeltaTime, ViewSmoothingSpeed));
-
-	SpringArm->TargetArmLength = 0.f;
+	SetActorRotation(SmoothedRotation);
 }
 
 

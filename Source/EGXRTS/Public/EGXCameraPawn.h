@@ -9,7 +9,10 @@
 class USpringArmComponent;
 class UCameraComponent;
 class UInputAction;
+class UInputComponent;
+class UInputActionValue;
 class AEGXPlanetActor;
+struct FEGXSurfaceHit;
 
 UCLASS()
 class EGXRTS_API AEGXCameraPawn : public APawn
@@ -19,28 +22,44 @@ class EGXRTS_API AEGXCameraPawn : public APawn
 public:
 	AEGXCameraPawn();
 	
+	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 	
 	UFUNCTION(BlueprintCallable, Category="EGX Camera")
 	void InitializeForPlanet(AEGXPlanetActor* InPlanet, const FVector& SurfacePoint);
+	
+	UFUNCTION(BlueprintCallable, Category="EGX Camera")
+	void InitializeForFlat(const FVector & InFocusWorldLocation);	
 
 	UFUNCTION(BlueprintCallable, Category="EGX Camera")
-	void SetFocusFromSurfaceHit(const FEGXSurfaceHit& SurfaceHit);
-
-protected:
-	virtual void BeginPlay() override;
+	void SetFocusWorldLocation(const FVector& InFocusWorldLocation);
 	
-	UPROPERTY(EditDefaultsOnly, BlueprintReadonly, Category = "Input")
-	TObjectPtr<UInputAction> MoveCameraAction;
+	UFUNCTION(BlueprintPure, Category="EGX Camera")
+	AEGXPlanetActor* GetActivePlanet() const { return ActivePlanet; }
+	
+	UFUNCTION(BlueprintPure, Category="EGX Camera")
+	FVector GetFocusWorldLocation() const { return FocusWorldLocation; }
 
-	UPROPERTY(EditDefaultsOnly, BlueprintReadonly, Category = "Input")
-	TObjectPtr<UInputAction> ZoomCameraAction;
+	UFUNCTION(BlueprintPure, Category="EGX Camera")
+	FVector GetFocusSurfaceNormal() const { return FocusSurfaceNormal; }
+	
+	UFUNCTION(BlueprintCallable, Category="EGX Camera")
+	void ClearPlanetMode();
+	
+	UFUNCTION(BlueprintCallable, Category="EGX Camera")
+	void SetFocusFromSurfaceHit(const FEGXSurfaceHit& SurfaceHit);
 
 	void Input_CameraPan(const FInputActionValue& Value);
 	void Input_CameraZoom(const FInputActionValue& Value);
 	void Input_CameraRotate(const FInputActionValue& Value);
+protected:
+	FVector GetStablePlanetReferenceForward(const FVector& Up) const;
 
+	FVector GetLocalUpVector() const;
+	void RebuildViewForwardFromCurrentTransform();
+	void ConstrainViewForwardToSurface();
+	void ApplyRotate(float DeltaTime);
 	void ApplyPan(float DeltaTime);
 	void UpdateViewTransform(float DeltaTime);
 
@@ -67,41 +86,41 @@ protected:
 	
 	FVector PendingMovementInput = FVector::ZeroVector;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float PanSpeed = 3500.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float ZoomSpeed = 800.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float MinZoom = 500.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float MaxZoom = 6000.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float PitchDegrees = 55.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float ViewSmoothingSpeed = 10.f;
 
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Camera")
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float RotationSpeedDegrees = 90.f;
 
-	UPROPERTY(BlueprintReadOnly, Category="Camera")
+	UPROPERTY(BlueprintReadOnly, Category="EGX Camera")
 	TObjectPtr<AEGXPlanetActor> ActivePlanet = nullptr;
 
-	UPROPERTY(BlueprintReadOnly, Category="Camera")
+	UPROPERTY(BlueprintReadOnly, Category="EGX Camera")
 	FVector FocusWorldLocation = FVector::ZeroVector;
 
-	UPROPERTY(BlueprintReadOnly, Category="Camera")
+	UPROPERTY(BlueprintReadOnly, Category="EGX Camera")
 	FVector FocusSurfaceNormal = FVector::UpVector;
+		
+	UPROPERTY(VisibleInstanceOnly, Category="EGX Camera")
+	FVector ViewForwardTangent = FVector::ForwardVector;
 
-	UPROPERTY(BlueprintReadOnly, Category="Camera")
+	UPROPERTY(BlueprintReadOnly, Category="EGX Camera")
 	float ZoomDistance = 1800.f;
-
-	UPROPERTY(BlueprintReadOnly, Category="Camera")
-	float YawDegrees = 0.f;
 
 	FVector2D PendingPanInput = FVector2D::ZeroVector;
 	float PendingZoomInput = 0.f;

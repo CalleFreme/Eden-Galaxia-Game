@@ -2,10 +2,12 @@
 
 
 #include "EGXBuildingBase.h"
-
+#include "EGXPlanetActor.h"
+#include "EGXSurfacePlacementLibrary.h"
 #include "Components/BoxComponent.h"
 #include "Components/DecalComponent.h"
 #include "Components/StaticMeshComponent.h"
+#include "EngineUtils.h"
 
 AEGXBuildingBase::AEGXBuildingBase()
 {
@@ -41,13 +43,41 @@ void AEGXBuildingBase::BeginPlay()
 	CurrentHealth = FMath::Clamp(CurrentHealth, 0.f, MaxHealth);
 	ConstructionProgress = FMath::Clamp(ConstructionProgress, 0.f, 1.f);
 
-	// Keep bounds roughly aligned with footprint.
 	PlacementBounds->SetBoxExtent(FVector(
 		FootprintSize.X * 0.5f,
 		FootprintSize.Y * 0.5f,
 		200.f));
 
+	if (AEGXPlanetActor* Planet = FindNearestPlanet())
+	{
+		SnapToPlanetSurface(Planet, GetActorLocation(), GetActorRotation().Yaw);
+	}
+
 	UpdateVisualState();
+}
+
+AEGXPlanetActor* AEGXBuildingBase::FindNearestPlanet() const
+{
+	AEGXPlanetActor* BestPlanet = nullptr;
+	float BestDistSq = TNumericLimits<float>::Max();
+
+	for (TActorIterator<AEGXPlanetActor> It(GetWorld()); It; ++It)
+	{
+		AEGXPlanetActor* Planet = *It;
+		if (!IsValid(Planet))
+		{
+			continue;
+		}
+
+		const float DistSq = FVector::DistSquared(GetActorLocation(), Planet->GetActorLocation());
+		if (DistSq < BestDistSq)
+		{
+			BestDistSq = DistSq;
+			BestPlanet = Planet;
+		}
+	}
+
+	return BestPlanet;
 }
 
 // Called every frame
@@ -227,4 +257,28 @@ void AEGXBuildingBase::UpdateVisualState_Implementation()
 	default:
 		break;
 	}
+}
+
+void AEGXBuildingBase::SnapToPlanetSurface(AEGXPlanetActor* Planet, const FVector& NearWorldPoint, float YawDegrees)
+{
+	if (!Planet)
+	{
+		return;
+	}
+
+	float Clearance = SurfaceClearance;
+	if (Clearance <= 0.f)
+	{
+		FVector Origin, Extent;
+		GetActorBounds(true, Origin, Extent);
+		Clearance = Extent.Z;
+	}
+
+	const FTransform Xf = UEGXSurfacePlacementLibrary::MakePlanetPlacementTransform(
+		Planet,
+		NearWorldPoint,
+		Clearance,
+		YawDegrees);
+
+	SetActorLocationAndRotation(Xf.GetLocation(), Xf.Rotator());
 }

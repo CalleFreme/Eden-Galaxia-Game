@@ -5,6 +5,8 @@
 #include "EGXPlanetActor.generated.h"
 
 class UProceduralMeshComponent;
+class USceneComponent;
+class UMaterialInterface;
 
 UCLASS()
 class EGXPLANET_API AEGXPlanetActor : public AActor
@@ -13,15 +15,33 @@ class EGXPLANET_API AEGXPlanetActor : public AActor
 
 public:
 	AEGXPlanetActor();
+	
+	virtual void BeginPlay() override;
+	
+#if WITH_EDITOR
+	virtual void OnConstruction(const FTransform& Transform) override;
+#endif
+		
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
+	TObjectPtr<USceneComponent> SceneRootComponent;
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Planet")
+	TObjectPtr<UProceduralMeshComponent> PlanetMesh;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Planet")
+	TObjectPtr<UMaterialInterface> PlanetMaterial = nullptr;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Planet")
 	FVector PlanetCenter = FVector::ZeroVector;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Planet")
-	float PlanetRadius = 10000.0f;
+	float PlanetRadius = 5000.0f;
 
 	UPROPERTY(EditAnywhere, Category="Planet")
-	int32 Resolution = 16;
+	int32 Resolution = 24;
+		
+	UFUNCTION(CallInEditor, BlueprintCallable)
+	void GeneratePlanet();
 	
 	UFUNCTION(BlueprintCallable, Category="Planet")
 	FVector GetSurfaceNormalAt(const FVector& WorldPoint) const;
@@ -31,9 +51,6 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category="Planet")
 	bool RaycastToPlanet(const FVector& RayOrigin, const FVector& RayDirection, FVector& OutPoint, FVector& OutNormal) const;
-	
-	UFUNCTION(CallInEditor, BlueprintCallable)
-	void GeneratePlanet();
 
 	UFUNCTION(BlueprintCallable)
 	FVector GetSurfacePointFromNormal(const FVector& UnitNormal, float HeightOffset = 0.0f) const;
@@ -42,11 +59,6 @@ public:
 	FRotator GetSurfaceRotationFromNormal(const FVector& UnitNormal) const;
 
 protected:
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<USceneComponent> SceneRootComponent;
-
-	UPROPERTY(VisibleAnywhere)
-	TObjectPtr<UProceduralMeshComponent> PlanetMesh;
 
 
 };

@@ -1,11 +1,11 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "GameFramework/Character.h"
+#include "EGXUnitBase.h"
 #include "EGXStewardCommander.generated.h"
 
 UCLASS()
-class EGXAI_API AEGXStewardCommander : public ACharacter
+class EGXAI_API AEGXStewardCommander : public AEGXUnitBase
 {
 	GENERATED_BODY()
 

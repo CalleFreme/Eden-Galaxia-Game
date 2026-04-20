@@ -1,5 +1,6 @@
 #include "EGXPlanetActor.h"
 #include "ProceduralMeshComponent.h"
+#include "Materials/MaterialInterface.h"
 
 AEGXPlanetActor::AEGXPlanetActor()
 {
@@ -8,14 +9,122 @@ AEGXPlanetActor::AEGXPlanetActor()
 	SceneRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("Root"));
 	RootComponent = SceneRootComponent;
 
+
 	PlanetMesh = CreateDefaultSubobject<UProceduralMeshComponent>(TEXT("PlanetMesh"));
 	PlanetMesh->SetupAttachment(RootComponent);
+	PlanetMesh->bUseComplexAsSimpleCollision = true;
+	PlanetMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	PlanetMesh->SetCollisionObjectType(ECC_WorldStatic);
+	PlanetMesh->SetCollisionResponseToAllChannels(ECR_Block);
+	PlanetMesh->SetMobility(EComponentMobility::Static);
+	PlanetMesh->SetGenerateOverlapEvents(false);
 }
+
+void AEGXPlanetActor::BeginPlay()
+{
+	Super::BeginPlay();
+
+	PlanetCenter = GetActorLocation();
+	GeneratePlanet();
+}
+
+#if WITH_EDITOR
+void AEGXPlanetActor::OnConstruction(const FTransform& Transform)
+{
+	Super::OnConstruction(Transform);
+
+	PlanetCenter = GetActorLocation();
+	GeneratePlanet();
+}
+#endif
 
 void AEGXPlanetActor::GeneratePlanet()
 {
-	// First pass: generate a simple sphere or cube-sphere chunk set.
-	// Keep this extremely simple at first. Prove placement + movement + camera before advanced topology.
+	/* TO DO:
+	* better UV seam handling
+	* reducing pole distortion
+	* using noise/biome displacement
+	* splitting into chunks/patches for scalability
+	* collision/nav strategy for very large planets
+	 */
+	if (!PlanetMesh)
+	{
+		return;
+	}
+
+	PlanetMesh->ClearAllMeshSections();
+
+	TArray<FVector> Vertices;
+	TArray<int32> Triangles;
+	TArray<FVector> Normals;
+	TArray<FVector2D> UVs;
+	TArray<FProcMeshTangent> Tangents;
+	TArray<FColor> VertexColors;
+
+	const int32 NumLat = FMath::Max(Resolution, 8);
+	const int32 NumLon = FMath::Max(Resolution * 2, 16);
+
+	for (int32 Lat = 0; Lat <= NumLat; ++Lat)
+	{
+		const float V = (float)Lat / (float)NumLat;
+		const float Theta = V * PI;
+
+		for (int32 Lon = 0; Lon <= NumLon; ++Lon)
+		{
+			const float U = (float)Lon / (float)NumLon;
+			const float Phi = U * PI * 2.f;
+
+			const float X = FMath::Sin(Theta) * FMath::Cos(Phi);
+			const float Y = FMath::Sin(Theta) * FMath::Sin(Phi);
+			const float Z = FMath::Cos(Theta);
+
+			const FVector UnitNormal(X, Y, Z);
+			const FVector Position = UnitNormal * PlanetRadius;
+
+			Vertices.Add(Position);
+			Normals.Add(UnitNormal);
+			UVs.Add(FVector2D(U, V));
+			VertexColors.Add(FColor::White);
+
+			const FVector TangentDir(-FMath::Sin(Phi), FMath::Cos(Phi), 0.f);
+			Tangents.Add(FProcMeshTangent(TangentDir.GetSafeNormal(), false));
+		}
+	}
+
+	for (int32 Lat = 0; Lat < NumLat; ++Lat)
+	{
+		for (int32 Lon = 0; Lon < NumLon; ++Lon)
+		{
+			const int32 Current = Lat * (NumLon + 1) + Lon;
+			const int32 Next = Current + NumLon + 1;
+
+			Triangles.Add(Current);
+			Triangles.Add(Current + 1);
+			Triangles.Add(Next);
+
+			Triangles.Add(Current + 1);
+			Triangles.Add(Next + 1);
+			Triangles.Add(Next);
+		}
+	}
+
+	PlanetMesh->CreateMeshSection(
+		0,
+		Vertices,
+		Triangles,
+		Normals,
+		UVs,
+		VertexColors,
+		Tangents,
+		true);
+	
+	if (PlanetMaterial)
+	{
+		
+		PlanetMesh->SetMaterial(0, PlanetMaterial);
+	}
+
+	PlanetMesh->ContainsPhysicsTriMeshData(true);
 }
 
 FVector AEGXPlanetActor::GetSurfacePointFromNormal(const FVector& UnitNormal, float HeightOffset) const

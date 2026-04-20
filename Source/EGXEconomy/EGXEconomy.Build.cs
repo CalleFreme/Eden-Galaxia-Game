@@ -13,6 +13,7 @@ public class EGXEconomy : ModuleRules
 			"Engine",
 			"GameplayTags",
 			"EGXCore",
+			"EGXPlanet"
 		});
 	}
 }

@@ -9,6 +9,7 @@
 class UBoxComponent;
 class UDecalComponent;
 class UStaticMeshComponent;
+class AEGXPlanetActor;
 
 UENUM(BlueprintType)
 enum class EEGXBuildingState : uint8
@@ -28,7 +29,6 @@ public:
 	AEGXBuildingBase();
 
 	virtual void Tick(float DeltaSeconds) override;
-	virtual void BeginPlay() override;
 
 	// -------------------------
 	// Selection
@@ -147,6 +147,9 @@ public:
 	}
 
 protected:
+	virtual void BeginPlay() override;
+	AEGXPlanetActor* FindNearestPlanet() const;
+	
 	UFUNCTION(BlueprintImplementableEvent, Category="EGX|Building")
 	void BP_OnSelectionChanged(bool bNowSelected);
 
@@ -234,6 +237,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Building|Visual")
 	bool bHideSelectionDecalWhenNotSelected = true;
+	
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="EGX|Building|Placement")
+	float SurfaceClearance = 0.f;
+
+	UFUNCTION(BlueprintCallable, Category="EGX|Building|Placement")
+	void SnapToPlanetSurface(AEGXPlanetActor* Planet, const FVector& NearWorldPoint, float YawDegrees = 0.f);
 	
 	// TO DO: Add a buildability query
 	// UFUNCTION(BlueprintCallable, Category="EGX|Building|Placement")
