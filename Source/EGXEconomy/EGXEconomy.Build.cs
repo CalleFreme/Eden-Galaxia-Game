@@ -12,7 +12,7 @@ public class EGXEconomy : ModuleRules
 			"CoreUObject",
 			"Engine",
 			"GameplayTags",
-			"EGXCore"
+			"EGXCore",
 		});
 	}
 }

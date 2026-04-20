@@ -18,7 +18,9 @@ public class EGXRTS : ModuleRules
 			"SlateCore",
 			"EGXCore",
 			"EGXPlanet",
-			"EGXEconomy"
+			"EGXEconomy",
+			"EGXGameplay",
+			"EGXAI"
 		});
 	}
 }

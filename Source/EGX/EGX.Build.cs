@@ -16,6 +16,7 @@ public class EGX : ModuleRules
 				"GameplayTags",
 				"DeveloperSettings",
 				"EGXCore",
+				"EGXGameplay",
 				"EGXRTS",
 				"EGXPlanet",
 				"EGXEconomy",

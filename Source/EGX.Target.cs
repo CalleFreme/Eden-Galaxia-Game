@@ -15,6 +15,7 @@ public class EGXTarget : TargetRules
 			"EGX",
 			"EGXCore",
 			"EGXEconomy",
+			"EGXGameplay",
 			"EGXRTS",
 			"EGXAI",
 			"EGXPlanet"

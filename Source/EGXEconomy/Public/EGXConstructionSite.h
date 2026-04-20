@@ -5,8 +5,15 @@
 #include "EGXTypes.h"
 #include "EGXConstructionSite.generated.h"
 
+/*
+ * A temporary actor spawned during placement, which:
+ * - stores the future building class
+ * - accepts worker build progress
+ * - spawns the real building on completion
+ */
+
 UCLASS()
-class EGXEconomy_API AEGXConstructionSite : public AActor
+class EGXECONOMY_API AEGXConstructionSite : public AActor
 {
 	GENERATED_BODY()
 

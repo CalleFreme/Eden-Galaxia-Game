@@ -15,6 +15,7 @@ public class EGXEditorTarget : TargetRules
 			"EGX",
 			"EGXCore",
 			"EGXEconomy",
+			"EGXGameplay",
 			"EGXRTS",
 			"EGXAI",
 			"EGXPlanet"

@@ -19,6 +19,7 @@ public class EGXAI : ModuleRules
 			"MassAIBehavior",
 			"EGXCore",
 			"EGXEconomy",
+			"EGXGameplay",
 			"EGXPlanet"
 		});
 	}

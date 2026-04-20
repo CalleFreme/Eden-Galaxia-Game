@@ -6,7 +6,7 @@
 #include "EGXInventoryComponent.generated.h"
 
 UCLASS(ClassGroup=(EGX), meta=(BlueprintSpawnableComponent))
-class EGXEconomy_API UEGXInventoryComponent : public UActorComponent
+class EGXECONOMY_API UEGXInventoryComponent : public UActorComponent
 {
 	GENERATED_BODY()
 

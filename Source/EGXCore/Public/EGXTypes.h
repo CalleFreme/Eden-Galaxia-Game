@@ -4,6 +4,10 @@
 #include "GameplayTagContainer.h"
 #include "EGXTypes.generated.h"
 
+class AActor;
+class AEGXPlanetActor;
+class AEGXBuildingBase;
+
 UENUM(BlueprintType)
 enum class EEGXResourceType : uint8
 {

@@ -31,7 +31,7 @@ struct FEGXJobRecord
 };
 
 UCLASS()
-class EGXEconomy_API UEGXJobSubsystem : public UWorldSubsystem
+class EGXECONOMY_API UEGXJobSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
