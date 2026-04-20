@@ -8,6 +8,36 @@
 			"Name": "EGX",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		},
+	  	{
+		    "Name": "EGXCore",
+		    "Type": "Runtime",
+		    "LoadingPhase": "Default"
+		},
+	  	{
+		    "Name": "EGXGameplay",
+		    "Type": "Runtime",
+		    "LoadingPhase": "Default"
+		},
+		{
+			"Name": "EGXRTS",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "EGXPlanet",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "EGXEconomy",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "EGXAI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
 		}
 	],
 	"Plugins": [
