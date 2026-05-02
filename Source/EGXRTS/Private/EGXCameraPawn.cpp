@@ -208,9 +208,9 @@ void AEGXCameraPawn::Tick(float DeltaTime)
 	if (!FMath::IsNearlyZero(PendingZoomInput))
 	{
 		ZoomDistance = FMath::Clamp(
-			ZoomDistance - PendingZoomInput * ZoomSpeed,
-			MinZoom,
-			MaxZoom);
+			ZoomDistance - PendingZoomInput * GetEffectiveZoomSpeed(),
+			GetEffectiveMinZoom(),
+			GetEffectiveMaxZoom());
 	}
 
 	UpdateViewTransform(DeltaTime);
@@ -313,7 +313,7 @@ void AEGXCameraPawn::ApplyPan(float DeltaTime)
 			(Forward * PendingPanInput.Y) +
 			(Right * PendingPanInput.X);
 
-		FocusWorldLocation += DesiredMove.GetClampedToMaxSize(1.f) * PanSpeed * DeltaTime;
+		FocusWorldLocation += DesiredMove.GetClampedToMaxSize(1.f) * GetEffectivePanSpeed() * DeltaTime;
 		FocusSurfaceNormal = FVector::UpVector;
 		return;
 	}
@@ -327,8 +327,9 @@ void AEGXCameraPawn::ApplyPan(float DeltaTime)
 
 	FVector RadiusDir = (FocusWorldLocation - PlanetCenter).GetSafeNormal();
 
-	const float ForwardDistance = PendingPanInput.Y * PanSpeed * DeltaTime;
-	const float RightDistance = PendingPanInput.X * PanSpeed * DeltaTime;
+	const float EffectivePanSpeed = GetEffectivePanSpeed();
+	const float ForwardDistance = PendingPanInput.Y * EffectivePanSpeed * DeltaTime;
+	const float RightDistance = PendingPanInput.X * EffectivePanSpeed * DeltaTime;
 
 	const float ForwardAngleRad = ForwardDistance / Radius;
 	const float RightAngleRad = RightDistance / Radius;
@@ -350,6 +351,7 @@ void AEGXCameraPawn::ApplyPan(float DeltaTime)
 
 void AEGXCameraPawn::UpdateViewTransform(float DeltaTime)
 {
+	ZoomDistance = FMath::Clamp(ZoomDistance, GetEffectiveMinZoom(), GetEffectiveMaxZoom());
 	SpringArm->TargetArmLength = ZoomDistance;
 	SpringArm->SetRelativeRotation(FRotator(-PitchDegrees, 0.f, 0.f));
 
@@ -374,6 +376,51 @@ void AEGXCameraPawn::UpdateViewTransform(float DeltaTime)
 
 	SetActorLocation(SmoothedLocation);
 	SetActorRotation(SmoothedRotation);
+}
+
+float AEGXCameraPawn::GetEffectiveMinZoom() const
+{
+	if (!bScaleZoomAndPanToPlanet || !ActivePlanet)
+	{
+		return MinZoom;
+	}
+
+	return FMath::Max(MinZoom, ActivePlanet->PlanetRadius * PlanetMinZoomRadiusRatio);
+}
+
+float AEGXCameraPawn::GetEffectiveMaxZoom() const
+{
+	if (!bScaleZoomAndPanToPlanet || !ActivePlanet)
+	{
+		return MaxZoom;
+	}
+
+	return FMath::Max(MaxZoom, ActivePlanet->PlanetRadius * PlanetMaxZoomRadiusRatio);
+}
+
+float AEGXCameraPawn::GetEffectiveZoomSpeed() const
+{
+	if (!bScaleZoomAndPanToPlanet || !ActivePlanet)
+	{
+		return ZoomSpeed;
+	}
+
+	return FMath::Max(ZoomSpeed, ActivePlanet->PlanetRadius * 0.08f);
+}
+
+float AEGXCameraPawn::GetEffectivePanSpeed() const
+{
+	if (!bScaleZoomAndPanToPlanet || !ActivePlanet)
+	{
+		return PanSpeed;
+	}
+
+	const float EffectiveMinZoom = GetEffectiveMinZoom();
+	const float EffectiveMaxZoom = GetEffectiveMaxZoom();
+	const float ZoomAlpha = FMath::Clamp((ZoomDistance - EffectiveMinZoom) / FMath::Max(EffectiveMaxZoom - EffectiveMinZoom, 1.f), 0.f, 1.f);
+	const float ZoomPan = PanSpeed * FMath::Lerp(1.f, FullyZoomedOutPanMultiplier, FMath::Pow(ZoomAlpha, 1.35f));
+	const float StrategicPan = (2.f * PI * ActivePlanet->PlanetRadius) / FMath::Max(StrategicPanPlanetCircumferenceSeconds, 1.f);
+	return FMath::Lerp(ZoomPan, StrategicPan, FMath::Pow(ZoomAlpha, 2.25f));
 }
 
 

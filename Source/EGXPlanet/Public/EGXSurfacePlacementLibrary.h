@@ -3,6 +3,9 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "EGXSurfacePlacementLibrary.generated.h"
 
+class AActor;
+class AEGXPlanetActor;
+
 UCLASS()
 class EGXPLANET_API UEGXSurfacePlacementLibrary : public UBlueprintFunctionLibrary
 {
@@ -23,4 +26,12 @@ public:
 	static FRotator MakeTangentFacingRotation(
 		const FVector& SurfaceNormal,
 		const FVector& DesiredForward);
+
+	UFUNCTION(BlueprintCallable, Category="EGX|SurfacePlacement")
+	static bool SnapActorToPlanetSurface(
+		AActor* Actor,
+		const AEGXPlanetActor* Planet,
+		float Clearance = 0.f,
+		bool bAlignRotation = true,
+		float YawDegrees = 0.f);
 };

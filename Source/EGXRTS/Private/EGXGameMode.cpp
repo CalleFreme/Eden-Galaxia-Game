@@ -7,6 +7,7 @@
 #include "EGXStewardCommander.h"
 #include "EGXWorkerUnit.h"
 #include "EGXScoutUnit.h"
+#include "EGXPlayerStart.h"
 
 #include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
@@ -16,6 +17,7 @@ AEGXGameMode::AEGXGameMode()
 	PlayerControllerClass = AEGXPlayerController::StaticClass();
 	DefaultPawnClass = AEGXCameraPawn::StaticClass();
 	HUDClass = AEGXHUD::StaticClass();
+	StewardCommanderClass = AEGXStewardCommander::StaticClass();
 }
 
 void AEGXGameMode::BeginPlay()
@@ -24,15 +26,17 @@ void AEGXGameMode::BeginPlay()
 
 	UE_LOG(LogTemp, Warning, TEXT("EGXGameMode BeginPlay"));
 
-	InitializePlayerCamera();
-
-	if (bSpawnStarterUnits)
+	AEGXStewardCommander* StewardCommander = nullptr;
+	const bool bHasExplicitPlayerStart = FindPlayerStartActor(0) != nullptr;
+	if (bSpawnStarterUnits || bHasExplicitPlayerStart)
 	{
-		SpawnStarterUnits();
+		StewardCommander = SpawnStarterUnits();
 	}
+
+	InitializePlayerCamera(StewardCommander);
 }
 
-void AEGXGameMode::InitializePlayerCamera()
+void AEGXGameMode::InitializePlayerCamera(const AActor* PreferredFocusActor)
 {
 	APlayerController* PC = UGameplayStatics::GetPlayerController(this, 0);
 	if (!PC)
@@ -70,8 +74,10 @@ void AEGXGameMode::InitializePlayerCamera()
 		return;
 	}
 
-	// This puts us at top of planet. Make configurable.
-	const FVector SurfacePoint = Planet->GetSurfacePointFromNormal(FVector::UpVector, 0.f);
+	const FVector SurfacePoint = PreferredFocusActor
+		? PreferredFocusActor->GetActorLocation()
+		: Planet->GetSurfacePointFromNormal(StarterSpawnSurfaceNormal.GetSafeNormal(), 0.f);
+
 	CameraPawn->InitializeForPlanet(Planet, SurfacePoint);
 
 	UE_LOG(LogTemp, Warning, TEXT("InitializePlayerCamera: Camera initialized for planet %s at %s"),
@@ -79,33 +85,55 @@ void AEGXGameMode::InitializePlayerCamera()
 		*SurfacePoint.ToString());
 }
 
-void AEGXGameMode::SpawnStarterUnits()
+AEGXStewardCommander* AEGXGameMode::SpawnStarterUnits()
 {
 	AEGXPlanetActor* Planet = nullptr;
+	AEGXPlayerStart* PlayerStart = FindPlayerStartActor(0);
+
+	if (PlayerStart && PlayerStart->PlanetOverride)
+	{
+		Planet = PlayerStart->PlanetOverride;
+	}
+
 	for (TActorIterator<AEGXPlanetActor> It(GetWorld()); It; ++It)
 	{
-		Planet = *It;
+		if (!Planet)
+		{
+			Planet = *It;
+		}
 		break;
 	}
 
 	FVector SpawnCenter = FVector::ZeroVector;
 	FRotator SpawnRotation = FRotator::ZeroRotator;
-	FVector SurfaceNormal = FVector::UpVector;
+	FVector SurfaceNormal = StarterSpawnSurfaceNormal.GetSafeNormal();
+	if (SurfaceNormal.IsNearlyZero())
+	{
+		SurfaceNormal = FVector::UpVector;
+	}
 
 	if (Planet)
 	{
-		SurfaceNormal = FVector::UpVector;
-		SpawnCenter = Planet->GetSurfacePointFromNormal(SurfaceNormal, 150.f);
+		if (PlayerStart)
+		{
+			SpawnCenter = Planet->ProjectPointToSurface(PlayerStart->GetActorLocation(), PlayerStart->SurfaceClearance);
+			SurfaceNormal = Planet->GetSurfaceNormalAt(SpawnCenter);
+		}
+		else
+		{
+			SpawnCenter = Planet->GetSurfacePointFromNormal(SurfaceNormal, 150.f);
+		}
 		SpawnRotation = Planet->GetSurfaceRotationFromNormal(SurfaceNormal);
 	}
 	else
 	{
-		SpawnCenter = FVector(0.f, 0.f, 100.f);
-		SpawnRotation = FRotator::ZeroRotator;
+		SpawnCenter = PlayerStart ? PlayerStart->GetActorLocation() : FVector(0.f, 0.f, 100.f);
+		SpawnRotation = PlayerStart ? PlayerStart->GetActorRotation() : FRotator::ZeroRotator;
 	}
 
 	FActorSpawnParameters Params;
 	Params.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	AEGXStewardCommander* SpawnedStewardCommander = nullptr;
 
 	auto MakePlanetSurfaceSpawn = [&](const FVector2D& TangentOffset) -> FTransform
 	{
@@ -134,13 +162,28 @@ void AEGXGameMode::SpawnStarterUnits()
 		return FTransform(SurfaceRot, SurfacePoint);
 	};
 
-	if (StewardCommanderClass)
+	TSubclassOf<AEGXStewardCommander> StewardClassToSpawn = StewardCommanderClass;
+	if (!StewardClassToSpawn)
+	{
+		StewardClassToSpawn = AEGXStewardCommander::StaticClass();
+	}
+
+	if (StewardClassToSpawn)
 	{
 		const FTransform Xf = MakePlanetSurfaceSpawn(FVector2D::ZeroVector);
-		if (AEGXStewardCommander* StewardCommander = GetWorld()->SpawnActor<AEGXStewardCommander>(StewardCommanderClass, Xf.GetLocation(), Xf.Rotator(), Params))
+		if (AEGXStewardCommander* StewardCommander = GetWorld()->SpawnActor<AEGXStewardCommander>(StewardClassToSpawn, Xf.GetLocation(), Xf.Rotator(), Params))
 		{
 			StewardCommander->SetActivePlanet(Planet);
 			StewardCommander->SnapToPlanetSurface(true);
+			SpawnedStewardCommander = StewardCommander;
+			UE_LOG(LogTemp, Warning, TEXT("SpawnStarterUnits: spawned steward commander %s at %s"),
+				*GetNameSafe(StewardCommander),
+				*StewardCommander->GetActorLocation().ToString());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("SpawnStarterUnits: failed to spawn steward commander class %s"),
+				*GetNameSafe(StewardClassToSpawn));
 		}
 	}
 
@@ -170,4 +213,20 @@ void AEGXGameMode::SpawnStarterUnits()
 			Scout->SnapToPlanetSurface(true);
 		}
 	}
+
+	return SpawnedStewardCommander;
+}
+
+AEGXPlayerStart* AEGXGameMode::FindPlayerStartActor(int32 PlayerId) const
+{
+	for (TActorIterator<AEGXPlayerStart> It(GetWorld()); It; ++It)
+	{
+		AEGXPlayerStart* Start = *It;
+		if (IsValid(Start) && Start->PlayerId == PlayerId)
+		{
+			return Start;
+		}
+	}
+
+	return nullptr;
 }

@@ -9,6 +9,7 @@ class AEGXCameraPawn;
 class AEGXStewardCommander;
 class AEGXWorkerUnit;
 class AEGXScoutUnit;
+class AEGXPlayerStart;
 
 UCLASS()
 class EGXRTS_API AEGXGameMode : public AGameModeBase
@@ -21,14 +22,15 @@ public:
 	virtual void BeginPlay() override;
 	
 protected:
-	void InitializePlayerCamera();
-	void SpawnStarterUnits();
+	void InitializePlayerCamera(const AActor* PreferredFocusActor = nullptr);
+	AEGXStewardCommander* SpawnStarterUnits();
+	AEGXPlayerStart* FindPlayerStartActor(int32 PlayerId) const;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Startup")
 	bool bInitializeCameraFromPlanet = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Startup")
-	bool bSpawnStarterUnits = false;
+	bool bSpawnStarterUnits = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Startup")
 	FVector FallbackCameraLocation = FVector(0.f, 0.f, 2000.f);
@@ -50,5 +52,8 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Startup")
 	float StarterSpawnRadius = 500.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX|Startup")
+	FVector StarterSpawnSurfaceNormal = FVector::UpVector;
 	
 };
