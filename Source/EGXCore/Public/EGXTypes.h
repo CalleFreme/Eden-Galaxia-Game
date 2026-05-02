@@ -13,7 +13,8 @@ enum class EEGXResourceType : uint8
 {
 	None,
 	Ore,
-	Ice,
+	WaterIce UMETA(DisplayName="Water Ice"),
+	Ice UMETA(Hidden, DisplayName="Deprecated Ice"),
 	Biomass,
 	Alloys,
 	Fuel,

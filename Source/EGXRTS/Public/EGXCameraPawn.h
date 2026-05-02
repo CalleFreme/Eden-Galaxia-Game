@@ -62,6 +62,10 @@ protected:
 	void ApplyRotate(float DeltaTime);
 	void ApplyPan(float DeltaTime);
 	void UpdateViewTransform(float DeltaTime);
+	float GetEffectiveMinZoom() const;
+	float GetEffectiveMaxZoom() const;
+	float GetEffectiveZoomSpeed() const;
+	float GetEffectivePanSpeed() const;
 
 	FVector GetCameraForwardOnTangentPlane() const;
 	FVector GetCameraRightOnTangentPlane() const;
@@ -97,6 +101,21 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float MaxZoom = 6000.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera|Planet Scale")
+	bool bScaleZoomAndPanToPlanet = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera|Planet Scale", meta=(ClampMin="0.001"))
+	float PlanetMinZoomRadiusRatio = 0.015f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera|Planet Scale", meta=(ClampMin="0.01"))
+	float PlanetMaxZoomRadiusRatio = 2.4f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera|Planet Scale", meta=(ClampMin="1.0"))
+	float FullyZoomedOutPanMultiplier = 80.f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera|Planet Scale", meta=(ClampMin="0.001"))
+	float StrategicPanPlanetCircumferenceSeconds = 18.f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="EGX Camera")
 	float PitchDegrees = 55.f;

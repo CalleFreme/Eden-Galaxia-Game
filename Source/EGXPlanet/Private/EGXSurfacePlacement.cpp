@@ -1,5 +1,6 @@
 #include "EGXSurfacePlacementLibrary.h"
 #include "EGXPlanetActor.h"
+#include "GameFramework/Actor.h"
 
 FTransform UEGXSurfacePlacementLibrary::MakeSurfaceAlignedTransform(const FVector& Origin, const FVector& SurfaceNormal, float YawDegrees)
 {
@@ -42,4 +43,43 @@ FRotator UEGXSurfacePlacementLibrary::MakeTangentFacingRotation(
 	}
 
 	return FRotationMatrix::MakeFromXZ(Forward, Up).Rotator();
+}
+
+bool UEGXSurfacePlacementLibrary::SnapActorToPlanetSurface(
+	AActor* Actor,
+	const AEGXPlanetActor* Planet,
+	float Clearance,
+	bool bAlignRotation,
+	float YawDegrees)
+{
+	if (!Actor || !Planet)
+	{
+		return false;
+	}
+
+	float EffectiveClearance = Clearance;
+	if (EffectiveClearance <= 0.f)
+	{
+		FVector Origin;
+		FVector Extent;
+		Actor->GetActorBounds(true, Origin, Extent);
+		EffectiveClearance = Extent.Z;
+	}
+
+	const FTransform SurfaceTransform = MakePlanetPlacementTransform(
+		Planet,
+		Actor->GetActorLocation(),
+		EffectiveClearance,
+		YawDegrees);
+
+	if (bAlignRotation)
+	{
+		Actor->SetActorLocationAndRotation(SurfaceTransform.GetLocation(), SurfaceTransform.Rotator());
+	}
+	else
+	{
+		Actor->SetActorLocation(SurfaceTransform.GetLocation());
+	}
+
+	return true;
 }
